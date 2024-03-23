@@ -107,10 +107,24 @@ func (m *Memeland) GetPostsInRange(startTimestamp, endTimestamp int64, page, pag
 
 	// Sort the filtered posts based on the sortBy parameter
 	switch sortBy {
+		// Sort by upvote descending
 	case "UPVOTES":
-		sort.Sort(ByUpvotes(filteredPosts))
+		dateSorter := PostSorter{
+			Posts: filteredPosts,
+			LessF: func(i, j int) bool {
+				return filteredPosts[i].UpvoteTracker.Size() > filteredPosts[j].UpvoteTracker.Size()
+			},
+		}
+		sort.Sort(dateSorter)
 	default:
-		panic("unsupported sort option")
+		// Sort by timestamp, beginning with newest
+		dateSorter := PostSorter{
+			Posts: filteredPosts,
+			LessF: func(i, j int) bool {
+				return filteredPosts[i].Timestamp.After(filteredPosts[j].Timestamp)
+			},
+		}
+		sort.Sort(dateSorter)
 	}
 
 	// Calculate the total number of pages
@@ -189,16 +203,20 @@ func escapeString(s string) string {
 	return strings.ReplaceAll(s, `"`, `\"`)
 }
 
-type ByUpvotes []*Post
-
-func (a ByUpvotes) Len() int { 
-	return len(a)
+// PostSorter is a flexible sorter for the *Post slice
+type PostSorter struct {
+	Posts []*Post
+	LessF func(i, j int) bool
 }
 
-func (a ByUpvotes) Swap(i, j int) { 
-	a[i], a[j] = a[j], a[i]
+func (p PostSorter) Len() int {
+	return len(p.Posts)
 }
 
-func (a ByUpvotes) Less(i, j int) bool {
-	return a[i].UpvoteTracker.Size() > a[j].UpvoteTracker.Size()
+func (p PostSorter) Swap(i, j int) {
+	p.Posts[i], p.Posts[j] = p.Posts[j], p.Posts[i]
+}
+
+func (p PostSorter) Less(i, j int) bool {
+	return p.LessF(i, j)
 }
